@@ -1,5 +1,4 @@
-# 6D-RGBD-Odometry
-Estimation of 6D (position/orientation) of Camera Pose using RGB-D Sensor.
+## 6D-RGBD-Odometry
 
 Implementation of the 6D RGD Odomentry algorithm proposed in:
 
