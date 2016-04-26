@@ -9,6 +9,7 @@ An rgb-d odometry algorihtm computing the 6DOF relative camera pose using BRAND 
 Nadia Figueroa, Haiwei Dong, and Abdulmotaleb El Saddik. 2015. A Combined Approach Toward Consistent Reconstructions of Indoor Spaces Based on 6D RGB-D Odometry and KinectFusion. ACM Trans. Intell. Syst. Technol. 6, 2, Article 14 (March 2015), 10 pages.
 
 H. Dong, N. Figueroa and A. El Saddik, "Towards consistent reconstructions of indoor spaces based on 6D RGB-D odometry and KinectFusion," 2014 IEEE/RSJ International Conference on Intelligent Robots and Systems, Chicago, IL, 2014, pp. 1796-1803.
+
 ---
 
 ###brand_match
