@@ -22,7 +22,17 @@ Iterative estimation using RANSAC and Umeyama Method.
 
 ###brand_based_odometry
 
-An rgb-d odometry algorihtm computing the 6DOF relative camera pose using BRAND features for frame-to-frame matching.
+To use this example you will need to install PCL library (www.pointclouds.org) and OpenCV (www.opencv.org). 
+
+Compile Code:
+```
+cmake ..
+```
+
+Run Code:
+```
+./6D-rgbd-odometry ...
+```
 
 #####References:
 
@@ -33,8 +43,17 @@ H. Dong, N. Figueroa and A. El Saddik, "Towards consistent reconstructions of in
 ---
 
 ###brand_match
+We also provide a stand-alone example that shows how to use the class to create BRAND descriptors.
 
-I attached the BRAND code as well as an example that shows how to use the class to create BRAND descriptors. To use this example you will need to install PCL library (www.pointclouds.org) and OpenCV (www.opencv.org). By the way, the BRAND code needs only OpenCV.
+Compile Code:
+```
+cmake ..
+```
+
+Run Code:
+```
+./6D-rgbd-odometry ...
+```
 
 #####Reference:
 
