@@ -4,7 +4,7 @@
 
 An rgb-d odometry algorihtm computing the 6DOF relative camera pose using BRAND features for frame-to-frame matching.
 
-#####Reference:
+#####References:
 
 Nadia Figueroa, Haiwei Dong, and Abdulmotaleb El Saddik. 2015. A Combined Approach Toward Consistent Reconstructions of Indoor Spaces Based on 6D RGB-D Odometry and KinectFusion. ACM Trans. Intell. Syst. Technol. 6, 2, Article 14 (March 2015), 10 pages.
 
