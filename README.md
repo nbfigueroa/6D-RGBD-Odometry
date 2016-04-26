@@ -2,21 +2,21 @@
 
 This package provides a novel  6D  RGB-D   odometry   approach   that   finds   the   relative   camera   pose between consecutive RGB-D frames by keypoint extraction and feature  matching  both  on  the  RGB  and  depth  image  planes.
 
-The find the Rigid Motion between two camera frames, the VO algorithm follows these steps:
+To find the Rigid Motion between two camera frames, the VO algorithm follows these steps:
 
-1) RGB-D Keypoint Extraction:
+#####1) RGB-D Keypoint Extraction:
 
 STAR Detector for RGB image and NARF detector for Depth Image.
 
-2) RGB-D Feature Matching:
+#####2) RGB-D Feature Matching:
 
 BRAND Description computation on keypoints and brute-force descriptor matcher with the Hamming norm and correspondence cross checking.
 
-3) Correspondences Outlier Rejection:
+#####3) Correspondences Outlier Rejection:
 
 Filter the matches using RANSAC outlier rejection algorithm  
 
-4) 6D Rigid Motion Estimation:
+#####4) 6D Rigid Motion Estimation:
 
 Iterative estimation using RANSAC and Umeyama Method.
 
