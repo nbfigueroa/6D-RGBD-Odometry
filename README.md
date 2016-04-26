@@ -1,5 +1,6 @@
 ## 6D-RGBD-Odometry
 
+<<<<<<< HEAD
 BRAND_Match
 
 I attached the BRAND code as well as an example that shows how to use
@@ -16,3 +17,11 @@ An rgb-d odometry algorihtm computing the 6DOF relative camera pose using BRAND 
 
 
 "Towards consistent reconstructions of indoor spaces based on 6D RGB-D odometry and KinectFusion" H Dong, N Figueroa, A El Saddik. In Proceedings of IEEE/RSJ Internation Conference on Intelligent Robots and Systems (IROS), 2014, Chicago, Illinois - USA.
+=======
+Implementation of a 6D RGD Odometry algorithm using BRAND features for frame-to-frame camera pose estimation.
+
+###References
+"Towards consistent reconstructions of indoor spaces based on 6D RGB-D odometry and KinectFusion" H Dong, N Figueroa, A El Saddik - Intelligent Robots and Systems (IROS 2014)
+
+
+>>>>>>> ed264e1e2f2f5a5e93853280b45f5f51e5cb1bb0
