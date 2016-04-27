@@ -20,15 +20,32 @@ Filter the matches using RANSAC outlier rejection algorithm
 
 Iterative estimation using RANSAC and Umeyama Method.
 
-###brand_based_odometry
+The output of this algorithm should be something similar to this video:
 
-To use this example you will need to install PCL library (www.pointclouds.org) and OpenCV (www.opencv.org). 
 
-Compile Code:
+
+
+###brand_odometry
+
+To run this example you will need to install PCL library (www.pointclouds.org), OpenCV (www.opencv.org) and compile the brand library in this folder, to do so,  (after succesfully installing PCL and OpenCV) you must follow these instructions:
+
 ```
-cmake ..
+cd ~/brand/
+mkdir build && cd build
+make
+sudo make install
 ```
+Once compiled you can test the BRAND desciptors by running a simple matching example found in:
 
+###brand_match
+This stand-alone example shows how to use the class to create BRAND descriptors.
+
+Compiling:
+```
+cd ~/brand_match/
+mkdir build && cd build
+make
+```
 Run Code:
 ```
 ./6D-rgbd-odometry ...
@@ -36,14 +53,9 @@ Run Code:
 
 #####References:
 
-Nadia Figueroa, Haiwei Dong, and Abdulmotaleb El Saddik. 2015. A Combined Approach Toward Consistent Reconstructions of Indoor Spaces Based on 6D RGB-D Odometry and KinectFusion. ACM Trans. Intell. Syst. Technol. 6, 2, Article 14 (March 2015), 10 pages.
-
-H. Dong, N. Figueroa and A. El Saddik, "Towards consistent reconstructions of indoor spaces based on 6D RGB-D odometry and KinectFusion," 2014 IEEE/RSJ International Conference on Intelligent Robots and Systems, Chicago, IL, 2014, pp. 1796-1803.
 
 ---
 
-###brand_match
-We also provide a stand-alone example that shows how to use the class to create BRAND descriptors.
 
 Compile Code:
 ```
@@ -55,9 +67,13 @@ Run Code:
 ./6D-rgbd-odometry ...
 ```
 
+---
 #####Reference:
+Nadia Figueroa, Haiwei Dong, and Abdulmotaleb El Saddik. 2015. A Combined Approach Toward Consistent Reconstructions of Indoor Spaces Based on 6D RGB-D Odometry and KinectFusion. ACM Trans. Intell. Syst. Technol. 6, 2, Article 14 (March 2015), 10 pages.
+
+H. Dong, N. Figueroa and A. El Saddik, "Towards consistent reconstructions of indoor spaces based on 6D RGB-D odometry and KinectFusion," 2014 IEEE/RSJ International Conference on Intelligent Robots and Systems, Chicago, IL, 2014, pp. 1796-1803.
 
 E. R. Nascimento, G. L. Oliveira, M. F. M. Campos, A. W. Vieira and W. R. Schwartz, "BRAND: A robust appearance and depth descriptor for RGB-D images," 2012 IEEE/RSJ International Conference on Intelligent Robots and Systems, Vilamoura, 2012, pp. 1720-1726.
 
 Brand Code provided by: [Erickson R. Nascimento](http://homepages.dcc.ufmg.br/~erickson/index.html)
-
+6D-RGD-Odometry Code provided by Nadia Figueroa.
