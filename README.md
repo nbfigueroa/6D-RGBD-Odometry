@@ -1,8 +1,38 @@
 ## 6D-RGBD-Odometry
 
+This package provides a novel  6D  RGB-D   odometry   approach   that   finds   the   relative   camera   pose between consecutive RGB-D frames by keypoint extraction and feature  matching  both  on  the  RGB  and  depth  image  planes.
+
+To find the Rigid Motion between two camera frames, the VO algorithm follows these steps:
+
+#####1) RGB-D Keypoint Extraction:
+
+STAR Detector for RGB image and NARF detector for Depth Image.
+
+#####2) RGB-D Feature Matching:
+
+BRAND Description computation on keypoints and brute-force descriptor matcher with the Hamming norm and correspondence cross checking.
+
+#####3) Correspondences Outlier Rejection:
+
+Filter the matches using RANSAC outlier rejection algorithm  
+
+#####4) 6D Rigid Motion Estimation:
+
+Iterative estimation using RANSAC and Umeyama Method.
+
 ###brand_based_odometry
 
-An rgb-d odometry algorihtm computing the 6DOF relative camera pose using BRAND features for frame-to-frame matching.
+To use this example you will need to install PCL library (www.pointclouds.org) and OpenCV (www.opencv.org). 
+
+Compile Code:
+```
+cmake ..
+```
+
+Run Code:
+```
+./6D-rgbd-odometry ...
+```
 
 #####References:
 
@@ -13,8 +43,17 @@ H. Dong, N. Figueroa and A. El Saddik, "Towards consistent reconstructions of in
 ---
 
 ###brand_match
+We also provide a stand-alone example that shows how to use the class to create BRAND descriptors.
 
-I attached the BRAND code as well as an example that shows how to use the class to create BRAND descriptors. To use this example you will need to install PCL library (www.pointclouds.org) and OpenCV (www.opencv.org). By the way, the BRAND code needs only OpenCV.
+Compile Code:
+```
+cmake ..
+```
+
+Run Code:
+```
+./6D-rgbd-odometry ...
+```
 
 #####Reference:
 
