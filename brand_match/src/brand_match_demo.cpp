@@ -31,7 +31,7 @@
 
 #include <pcl/features/integral_image_normal.h>
 
-#include "brand.h"
+#include "brand/brand.h"
 
 
 void crossCheckMatching( const cv::Mat& descriptors1, const cv::Mat& descriptors2,
