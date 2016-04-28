@@ -62,6 +62,7 @@ You should then get the following output:
 Finally, if you want to test the odometry algorithm, you should download a dataset with a moving rgb-d sensor. I recommend one of these : [TUM RGB-D Dataset](http://vision.in.tum.de/data/datasets/rgbd-dataset/download) or if you have your own dataset you should just put both rgb and depth in the same folder with same timestamps, follow the naming convention of the rgb-d dataset. 
 
 ** Not working, missing a header file **
+
 Compiling:
 ```
 cd ~/brand_odometry/
