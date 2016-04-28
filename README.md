@@ -39,7 +39,7 @@ sudo make install
 Once compiled you can test the BRAND desciptors by running a simple matching example found in:
 
 ###brand_match
-This stand-alone example shows how to use the class to create BRAND descriptors.
+This stand-alone example shows how to use the class to create BRAND descriptors and do a simple brute-force matching between two frames.
 
 Compiling:
 ```
