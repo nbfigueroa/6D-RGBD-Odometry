@@ -4,13 +4,17 @@ project (BRAND_ODOMETRY)
 find_package (OpenCV REQUIRED) 
 find_package (PCL 1.4 REQUIRED)
 
-include_directories (include ${PCL_INCLUDE_DIRS} ${BRAND_INCLUDE_DIRS})
+include_directories (${BRAND_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS} )
 
-add_executable ( 6d_odometry_nadia src/brand_match_demo.cpp )
-target_link_libraries ( 6d_odometry_nadia
+FILE(GLOB SRC_FILES src/brand.cpp)
+FILE(GLOB HEADER_FILES include/brand.h)
+
+add_executable ( brand_odometry src/brand_odometry.cpp )
+target_link_libraries ( brand_odometry
+   brand
    pcl_features
    pcl_common
    pcl_search
    pcl_kdtree
-   ${OpenCV_LIBS} brand)
+   ${OpenCV_LIBS} )
 

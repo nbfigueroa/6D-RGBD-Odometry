@@ -1,5 +1,6 @@
 #include <vector>
 #include <algorithm>
+
 //OPENCV
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -32,7 +33,7 @@
 #include <pcl/filters/voxel_grid.h>
 
 //Brand
-#include "brand.h"
+#include "brand/brand.h"
 #include "evaluation_brand.h"
 
 //Fovis

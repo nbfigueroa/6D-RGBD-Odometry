@@ -1,31 +1,6 @@
-/* 
-   Copyright (C) 2013 Erickson R. Nascimento
-
-   THIS SOURCE CODE IS PROVIDED 'AS-IS', WITHOUT ANY EXPRESS OR IMPLIED
-   WARRANTY. IN NO EVENT WILL THE AUTHOR BE HELD LIABLE FOR ANY DAMAGES
-   ARISING FROM THE USE OF THIS SOFTWARE.
-
-   Permission is granted to anyone to use this software for any purpose,
-   including commercial applications, and to alter it and redistribute it
-   freely, subject to the following restrictions:
-
-
-   1. The origin of this source code must not be misrepresented; you must not
-      claim that you wrote the original source code. If you use this source code
-      in a product, an acknowledgment in the product documentation would be
-      appreciated but is not required.
-
-   2. Altered source versions must be plainly marked as such, and must not be
-      misrepresented as being the original source code.
-
-   3. This notice may not be removed or altered from any source distribution.
-
-   Contact: erickson [at] dcc [dot] ufmg [dot] br
-
-*/
-
 #include <vector>
 #include <algorithm>
+
 //OPENCV
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -55,11 +30,11 @@
 #include <pcl/range_image/range_image_planar.h>
 #include <pcl/features/range_image_border_extractor.h>
 #include <pcl/keypoints/narf_keypoint.h>
-
+#include <pcl/filters/voxel_grid.h>
 
 //Brand
-#include "brand.h"
-#include "evaluation_brand.h"
+#include "brand/brand.h"
+//#include "evaluation_brand.h"
 
 //Fovis
 #include <stdint.h>
@@ -83,7 +58,8 @@ const float cy = 239.5f;
 // -----Parameters-----
 // --------------------
 float angular_resolution = 0.5f;
-float support_size = 0.1f;
+//float support_size = 0.1f;
+float support_size = 0.2f;
 pcl::RangeImage::CoordinateFrame coordinate_frame = pcl::RangeImage::CAMERA_FRAME;
 bool setUnseenToMaxRange = false;
 int max_no_of_threads = 8;
@@ -91,11 +67,37 @@ float min_interest_value = 0.1;
 typedef std::pair <int, int> Intpair;
 vector<Intpair> absolute_indices;
 
+struct FrameComputation{
+   cv::Mat cloud, normals, desc;
+   std::vector<cv::KeyPoint> keypoints;
+   pcl::PointCloud<PointXYZ>::Ptr pcl_cloud;
+   pcl::PointCloud<pcl::Normal>::Ptr pcl_normals ;
+   
+   FrameComputation(){} 
+
+   FrameComputation(cv::Mat& cloud_, cv::Mat& normals_, std::vector<cv::KeyPoint>& keypoints_, cv::Mat& desc_, pcl::PointCloud<PointXYZ>::Ptr& pcl_cloud_, pcl::PointCloud<pcl::Normal>::Ptr& pcl_normals_){
+	cloud = cloud_;
+	normals = normals_;
+	keypoints = keypoints_;
+	desc = desc_;
+	pcl_cloud = pcl_cloud_;
+	pcl_normals = pcl_normals_;
+   } 
+
+   void assign(cv::Mat& cloud_, cv::Mat& normals_, std::vector<cv::KeyPoint>& keypoints_, cv::Mat& desc_, pcl::PointCloud<PointXYZ>::Ptr& pcl_cloud_, pcl::PointCloud<pcl::Normal>::Ptr& pcl_normals_){
+  	cloud = cloud_;
+	normals = normals_;
+	keypoints = keypoints_;
+	desc = desc_;
+	pcl_cloud = pcl_cloud_;
+	pcl_normals = pcl_normals_;
+   }
+};
+
+vector<FrameComputation> framecomputations;
+pcl::PointCloud<PointXYZRGB> model;
+
 pcl::visualization::PCLVisualizer *viewer2 = new pcl::visualization::PCLVisualizer ("Reconstruction Viewer");
-//  pcl::visualization::RangeImageVisualizer range_image_widget ("Range image");
-//pcl::visualization::PCLVisualizer viewer ("3D Viewer");
-//pcl::visualization::PCLVisualizer *viewer3 = new pcl::visualization::PCLVisualizer ("Cloud Viewer");
-//boost::shared_ptr<pcl::visualization::PCVisualizer> viewer2 = new pcl::visualization::PCLVisualizer::Ptr ("Reconstruction Viewer");
 int globindx (0);
 
 
@@ -140,24 +142,8 @@ void crossCheckMatching( const cv::Mat& descriptors1, const cv::Mat& descriptors
 }
 
 
-void compute_normals(const cv::Mat& cloud, cv::Mat& normals, pcl::PointCloud<pcl::Normal>::Ptr& pcl_normals)
+void compute_normals( cv::Mat& cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr& pcl_cloud, cv::Mat& normals, pcl::PointCloud<pcl::Normal>::Ptr& pcl_normals)
 {
-   pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud( new pcl::PointCloud<pcl::PointXYZ> );
-   pcl_cloud->clear();
-   pcl_cloud->width     = cloud.cols;
-   pcl_cloud->height    = cloud.rows;
-   pcl_cloud->points.resize( pcl_cloud->width * pcl_cloud->height);
-    
-   for(int y = 0; y < cloud.rows; ++y)
-   for(int x = 0; x < cloud.cols; ++x)
-   {
-      pcl_cloud->at(x,y).x = cloud.at<cv::Point3f>(y,x).x;
-      pcl_cloud->at(x,y).y = cloud.at<cv::Point3f>(y,x).y;
-      pcl_cloud->at(x,y).z = cloud.at<cv::Point3f>(y,x).z;
-   }
-
-
-   //pcl::PointCloud<pcl::Normal>::Ptr pcl_normals (new pcl::PointCloud<pcl::Normal>);
    pcl_normals->clear();
    pcl_normals->width  = pcl_cloud->width;
    pcl_normals->height = pcl_cloud->height;
@@ -180,14 +166,6 @@ void compute_normals(const cv::Mat& cloud, cv::Mat& normals, pcl::PointCloud<pcl
       normals.at<cv::Point3f>(y,x).z = pcl_normals->at(x,y).normal_z; 
    }
    
-//   //Visualization Show Cloud with normals1
-//   std::stringstream ss ("cloud"); ss << globindx;
-//   viewer3->addPointCloud<pcl::PointXYZ> (pcl_cloud, ss.str());
-//   viewer3->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, ss.str());
-//   viewer3->addPointCloudNormals<pcl::PointXYZ, pcl::Normal> (pcl_cloud, pcl_normals, 10, 0.05, "normals");
-//   viewer3->initCameraParameters ();
-//   viewer3->spinOnce();	
-//
 }
 
 void create_cloud( const cv::Mat &depth, cv::Mat& cloud )
@@ -237,22 +215,6 @@ void convert_cv2pcl_cloud(cv::Mat& cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr& p
       pcl_cloud->at(x,y).y = cloud.at<cv::Point3f>(y,x).y;
       pcl_cloud->at(x,y).z = cloud.at<cv::Point3f>(y,x).z;
    } 	
-
-
-//   pcl_cloud->clear();
-//   pcl_cloud->width     = cloud.cols * cloud.rows;
-//   pcl_cloud->height    = 1;
-//   pcl_cloud->points.resize( cloud.cols * cloud.rows);
-//   int idx = 0;
-//   for(int y = 0; y < cloud.rows; ++y)
-//   for(int x = 0; x < cloud.cols; ++x)
-//   {
-//      pcl_cloud->points[idx].x = cloud.at<cv::Point3f>(y,x).x;
-//      pcl_cloud->points[idx].y = cloud.at<cv::Point3f>(y,x).y;
-//      pcl_cloud->points[idx].z = cloud.at<cv::Point3f>(y,x).z;
-//      idx++;
-//    } 
-
 }
 
 void 
@@ -296,6 +258,7 @@ void extractNARFkeypoints(cv::Mat& cloud,   std::vector<cv::KeyPoint>& keypoints
       float original_angular_resolution = asinf (0.5f*float (width)/float (fx)) / (0.5f*float (width));
       float desired_angular_resolution = angular_resolution;
       range_image_planar.setDepthImage (&source_depth_data_[0], width, height, center_x, center_y, fx, fy);
+      range_image_planar.setUnseenToMaxRange();
 
   // --------------------------------
   // -----Extract NARF keypoints-----
@@ -307,8 +270,8 @@ void extractNARFkeypoints(cv::Mat& cloud,   std::vector<cv::KeyPoint>& keypoints
       narf_keypoint_detector.getParameters ().max_no_of_threads = max_no_of_threads;
       narf_keypoint_detector.getParameters ().min_interest_value = min_interest_value;
 //      narf_keypoint_detector.getParameters ().add_points_on_straight_edges = true;
-//      narf_keypoint_detector.getParameters ().calculate_sparse_interest_image = true;
-//      narf_keypoint_detector.getParameters ().use_recursive_scale_reduction = true;
+      narf_keypoint_detector.getParameters ().calculate_sparse_interest_image = true;
+      narf_keypoint_detector.getParameters ().use_recursive_scale_reduction = true;
       
       pcl::PointCloud<int> keypoint_indices;
       double keypoint_extraction_start_time = pcl::getTime();
@@ -347,30 +310,25 @@ struct Ksame{
 void combineKeypoints( std::vector<cv::KeyPoint>& keypoints_star, std::vector<cv::KeyPoint>& keypoints_narf,  std::vector<cv::KeyPoint>& keypoints){
 	keypoints = keypoints_star;
 	keypoints.insert(keypoints.end(), keypoints_narf.begin(), keypoints_narf.end());
-	cout << keypoints.size() << " keypoints before sorting. \n";
 	std::sort( keypoints.begin(), keypoints.end(), Kgreater() );
         keypoints.erase( unique( keypoints.begin(), keypoints.end(), Ksame() ), keypoints.end() );
-	cout << keypoints.size() << " keypoints after sorting. \n";
 }
 
-void extract_keypoints(cv::Mat& rgb1, cv::Mat& cloud1, cv::Mat& rgb2, cv::Mat& cloud2, std::vector<cv::KeyPoint>& keypoints1, std::vector<cv::KeyPoint>& keypoints2)
+void extract_keypoints(cv::Mat& rgb, cv::Mat& cloud, std::vector<cv::KeyPoint>& keypoints)
 {
    //Extract A* Keypoints (RGB)
-   std::vector<cv::KeyPoint> keypoints1_star, keypoints2_star; 	
+   std::vector<cv::KeyPoint> keypoints_star; 	
    cv::Ptr<cv::FeatureDetector> detector = cv::FeatureDetector::create( "STAR" );
-   detector->detect( rgb1, keypoints1_star);
-   detector->detect( rgb2, keypoints2_star);
+   detector->detect( rgb, keypoints_star);
 
    //Extract NARF Keypoints (Depth)
-   std::vector<cv::KeyPoint> keypoints1_narf, keypoints2_narf;
-   pcl::PointCloud<int> keypoint_indices1, keypoint_indices2;
-   extractNARFkeypoints(cloud1, keypoints1_narf);
-   extractNARFkeypoints(cloud2, keypoints2_narf);
+   std::vector<cv::KeyPoint> keypoints_narf;
+   pcl::PointCloud<int> keypoint_indices;
+   extractNARFkeypoints(cloud, keypoints_narf);
 
-  //Combine A* + NARF Keypoints
-  combineKeypoints(keypoints1_star, keypoints1_narf, keypoints1);
-  combineKeypoints(keypoints2_star, keypoints2_narf, keypoints2);
-
+   //Combine A* + NARF Keypoints
+   combineKeypoints(keypoints_star, keypoints_narf, keypoints);
+ 
 }
 
 void ransacOutlierRejection(cv::Mat& img1, std::vector<cv::KeyPoint>& keypoints1,cv::Mat& img2, std::vector<cv::KeyPoint>& keypoints2, std::vector<cv::DMatch>& filteredMatches, std::vector<cv::DMatch>& finalMatches, int ransacReprojThreshold, bool output){
@@ -428,27 +386,6 @@ void ransacOutlierRejection(cv::Mat& img1, std::vector<cv::KeyPoint>& keypoints1
 	cv::waitKey(1);
 }
 
-void brand_matching(cv::Mat& rgb1, cv::Mat& cloud1, cv::Mat& rgb2, cv::Mat& cloud2, std::vector<cv::KeyPoint>& keypoints1, std::vector<cv::KeyPoint>& keypoints2, std::vector<cv::DMatch>& matches, pcl::PointCloud<pcl::Normal>::Ptr& normals1pcl,pcl::PointCloud<pcl::Normal>::Ptr& normals2pcl){
-
-   //ScopeTimeT time ("Brand Matching");
-
-   // detect keypoints using rgb and depth images
-   extract_keypoints(rgb1, cloud1, rgb2, cloud2, keypoints1, keypoints2);
-   // create point clouds and compute normals
-   cv::Mat normals1, normals2;
-   compute_normals(cloud1, normals1, normals1pcl);
-   compute_normals(cloud2, normals2, normals2pcl);
-
-   // extract descriptors
-   BrandDescriptorExtractor brand;
-   cv::Mat desc1;
-   brand.compute( rgb1, cloud1, normals1, keypoints1, desc1 );
-   cv::Mat desc2;
-   brand.compute( rgb2, cloud2, normals2, keypoints2, desc2 );
-
-   // matching descriptors
-   crossCheckMatching(desc2, desc1, matches);
-}
 
 
 void createPointcloudFromRegisteredDepthImage(cv::Mat& depthImage, cv::Mat& rgbImage, pcl::PointCloud<pcl::PointXYZRGB>::Ptr& outputPointcloud)
@@ -539,15 +476,18 @@ void estimateRigidMotion(std::vector<cv::DMatch>& final_matches, cv::Mat& rgb1, 
        		 queryIdxs[i] = final_matches[i].queryIdx;
        		 trainIdxs[i] = final_matches[i].trainIdx;
     }
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_rgb_cloud1 (new pcl::PointCloud<pcl::PointXYZRGB> ), pcl_rgb_cloud2 (new pcl::PointCloud<pcl::PointXYZRGB> );
-    createPointcloudFromRegisteredDepthImage(depth1, rgb1, pcl_rgb_cloud1);
-    createPointcloudFromRegisteredDepthImage(depth2, rgb2, pcl_rgb_cloud2);
+
+   	   pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_rgb_cloud1 (new pcl::PointCloud<pcl::PointXYZRGB> ), pcl_rgb_cloud2 (new pcl::PointCloud<pcl::PointXYZRGB> );
+ 		createPointcloudFromRegisteredDepthImage(depth1, rgb1, pcl_rgb_cloud1);
+ 		createPointcloudFromRegisteredDepthImage(depth2, rgb2, pcl_rgb_cloud2);
     vector<Point2f> points1; cv::KeyPoint::convert(keypoints1, points1, trainIdxs);
     vector<Point2f> points2; cv::KeyPoint::convert(keypoints2, points2, queryIdxs);
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pcl_rgb_cloud1);
     pcl::transformPointCloud(*pcl_rgb_cloud1,*pcl_rgb_cloud1,T_prev);
     pcl::transformPointCloud(*pcl_rgb_cloud2,*pcl_rgb_cloud2,T_prev);
-	if(globindx==0){
+    
+
+	if(globindx==0 and output){
 		Eigen::Vector3f t; Eigen::Quaternionf q;
 		std::stringstream sss_cl ("cloud"); sss_cl << globindx;
     		viewer2->addPointCloud<pcl::PointXYZRGB> (pcl_rgb_cloud1, rgb, sss_cl.str());
@@ -558,10 +498,6 @@ void estimateRigidMotion(std::vector<cv::DMatch>& final_matches, cv::Mat& rgb1, 
 	}
 	    vector <double> l1norms, l2norms;
 	    pcl::PointCloud<pcl::PointXYZRGBNormal> pointcloud_src, pointcloud_tgt;
-           /* 	pcl::PointCloud<pcl::PointXYZRGBNormal> src_w_norm, tgt_w_norm, finalcloud_src, finalcloud_tgt;
-		pcl::concatenateFields(pointcloud_src, *pcl_normals1, src_w_norm);
-		pcl::concatenateFields(pointcloud_tgt, *pcl_normals2, tgt_w_norm);
-	   */
 	    for( size_t i1 = 0; i1 < points1.size(); i1++ ){
 			int id1_x(points1[i1].x), id1_y(points1[i1].y),id2_x(points2[i1].x), id2_y(points2[i1].y);
 			pcl::PointXYZRGBNormal p_src, p_tgt;
@@ -581,7 +517,6 @@ void estimateRigidMotion(std::vector<cv::DMatch>& final_matches, cv::Mat& rgb1, 
 			pointcloud_tgt.push_back(p_tgt);
 			Eigen::Vector4f s(p_src.x,p_src.y,p_src.z,1);
 			Eigen::Vector4f t(p_tgt.x,p_tgt.y,p_tgt.z,1);
-			//cout << "Match " << i1+1 << " l1: " << l1(s, t) << " l2: " << l2(s, t) << endl;
 			l1norms.push_back(l1(s, t));l2norms.push_back(l2(s, t));
 
 			}
@@ -618,7 +553,7 @@ void estimateRigidMotion(std::vector<cv::DMatch>& final_matches, cv::Mat& rgb1, 
 	   // Estimate rigid motion (6d) ... iterative or exact?
 	   // Obtain the best transformation between the two sets of keypoints given the remaining correspondences
 		
-  	   float final_error = 0.5,threshold_(0.003), error_threshold(0.10), hypotheses_iterations(150);
+  	   float final_error = 0.50, threshold_(0.003), error_threshold (0.10), hypotheses_iterations(200);
 	   int c (0), k(5);
 	   Eigen::Matrix4f T;
 	   std::vector<int> indices, combo;
@@ -626,7 +561,8 @@ void estimateRigidMotion(std::vector<cv::DMatch>& final_matches, cv::Mat& rgb1, 
 	   vector<float> errors;
 	   for(int i=0;i<final_correspondences.size();++i)
 			indices.push_back(i);
-//	   while (final_error > error_threshold and c < 11){ very good results up to 150 frames			Eigen::Matrix3f R( q.toRotationMatrix());
+
+           bool min_found(false);
 	   while (c < hypotheses_iterations){
 		c++;		
 		// Find a random combination (k corresponding pairs)
@@ -641,29 +577,7 @@ void estimateRigidMotion(std::vector<cv::DMatch>& final_matches, cv::Mat& rgb1, 
 				iter_correspondences.push_back(corr);
 		    }
 
-//		pcl::registration::TransformationEstimationSVD<PointXYZRGBNormal, PointXYZRGBNormal> trans_est;
-//		pcl::registration::TransformationEstimationPointToPlaneLLS<PointXYZRGBNormal, PointXYZRGBNormal> trans_est;
-//		trans_est.estimateRigidTransformation (finalcloud_src, finalcloud_tgt, iter_correspondences, T);
-
-
-		T = rigidMotionEstimation(finalcloud_src, finalcloud_tgt, iter_correspondences);
-/*
-		pcl::IterativeClosestPoint<pcl::PointXYZRGBNormal,pcl::PointXYZRGBNormal> icp;		
-		icp.setTransformationEpsilon (1e-8); icp.setMaxCorrespondenceDistance (meanl1*1.5); 
-		icp.setInputSource (finalcloud_src.makeShared()); icp.setInputTarget (finalcloud_tgt.makeShared());
- 		pcl::PointCloud<pcl::PointXYZRGBNormal> Final;
- 	 	icp.align(Final);
-  		T = icp.getFinalTransformation();	  
-*/		
-
-/*
-		pcl::IterativeClosestPointNonLinear<pcl::PointXYZRGBNormal,pcl::PointXYZRGBNormal> icp_nl;		
-		icp_nl.setTransformationEpsilon (1e-8); icp_nl.setMaxCorrespondenceDistance (meanl1*1.5); 
-		icp_nl.setInputSource (finalcloud_src.makeShared()); icp_nl.setInputTarget (finalcloud_tgt.makeShared());
- 		pcl::PointCloud<pcl::PointXYZRGBNormal> Final;
- 	 	icp_nl.align(Final);
-  		T = icp_nl.getFinalTransformation();
-*/		
+		T = rigidMotionEstimation(finalcloud_src, finalcloud_tgt, iter_correspondences);		
 		T = T.inverse();
 		pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr transformed (new pcl::PointCloud<pcl::PointXYZRGBNormal> );
 		pcl::transformPointCloud(finalcloud_tgt,*transformed,T);
@@ -687,37 +601,33 @@ void estimateRigidMotion(std::vector<cv::DMatch>& final_matches, cv::Mat& rgb1, 
 		if(final_error>0){
 			errors.push_back(final_error);
 			transforms.push_back(T);
-//			cout << "Error: " << final_error << endl;
 		}
+
+
+		if(c>(hypotheses_iterations-5)){
+			hypotheses_iterations = hypotheses_iterations + 100;
+			k = k+1;
+	        }
+   		if(c>1000)
+		  break;
 	        combo.clear();
 	   }
+
+
 		float min_error = *std::min_element(errors.begin(), errors.end());
 		std::vector<float>::iterator  min_error_it = std::min_element(errors.begin(), errors.end());
 		int min_error_id = static_cast<int> (min_error_it - errors.begin());
 		std::cout << "Minimum error of " << min_error << " at iteration " << min_error_id << endl;
-//		if (min_error > error_threshold)
-//				viewer2->spin();
-
-//		std::cout << "Corresponding transformation matrix:" << endl;
 		Eigen::Matrix4f min_T = transforms[min_error_id];
 		Eigen::Vector3f t_r; Eigen::Quaternionf q_r; Eigen::Vector3f rpy = Eigen::Isometry3f(min_T).rotation().eulerAngles(0,1,2);
 		convert2qt(min_T,t_r,q_r);
 		std::cout << "Relative translation:" << endl;
 		double relative_t = sqrt(t_r[0]*t_r[0] +  t_r[1]*t_r[1] + t_r[2]*t_r[2]);
  		std:: cout << "abs t: " << relative_t << " r: " << (rpy[0]*180)/3.14159 << " p: " << (rpy[1]*180)/3.14159 << " y: " << (rpy[2]*180)/3.14159 << endl;
-		double rotation_threshold (6.0), absolute_r;
+		double rotation_threshold (10.0), translation_threshold (0.15), absolute_r;
 		absolute_r = abs((rpy[0]*180)/3.14159) + abs((rpy[1]*180)/3.14159) + abs((rpy[2]*180)/3.14159);
-		if (relative_t > 0.1 or absolute_r > rotation_threshold)
-			cv::waitKey();
-//	 	T=min_T;
-
-
-/*		pcl::IterativeClosestPoint<pcl::PointXYZRGB,pcl::PointXYZRGB> icp;		
-		icp.setTransformationEpsilon (1e-6); icp.setMaxCorrespondenceDistance (meanl1*1.25); 
-		icp.setInputSource (pcl_rgb_cloud1); icp.setInputTarget (pcl_rgb_cloud2);
- 		pcl::PointCloud<pcl::PointXYZRGB> Final;
- 	 	icp.align(Final, min_T.inverse());
-  		T = icp.getFinalTransformation();*/	  
+		if (relative_t > translation_threshold or absolute_r > rotation_threshold)
+			cv::waitKey();  
 
 
 		//ICP-NL Refinement
@@ -737,47 +647,29 @@ void estimateRigidMotion(std::vector<cv::DMatch>& final_matches, cv::Mat& rgb1, 
 		// After final transformation
 //		cout << "Final Error: " << final_error << endl;
 //		cout << "Estimated Transformation after " << c << " iterations:" << endl; 
-		Eigen::Matrix4f T_ref = min_T;
+		Eigen::Matrix4f T_ref = min_T; //no refinement
 		T_current = T_ref*T_prev;
 		Eigen::Vector3f t; Eigen::Quaternionf q;
 		convert2qt(T_current,t,q);
 //   		cout << t[0] << " " << t[1] << " " << t[2] << " ";
-//   		cout << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << endl;
+//   		cout << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << endl
+
+     		//--Visualization
+
+
+		if (output){
 		pcl::transformPointCloud(*pcl_rgb_cloud2,*pcl_rgb_cloud2,T_ref);
 		std::stringstream sss_cl ("ccloud"); sss_cl << globindx;
     		viewer2->addPointCloud<pcl::PointXYZRGB> (pcl_rgb_cloud2, rgb, sss_cl.str());
 		Eigen::Matrix3f R( q.toRotationMatrix());
 		Eigen::Affine3f pose = Eigen::Translation3f (t) * Eigen::AngleAxisf (R);
 		viewer2->addCoordinateSystem(0.1,pose);
-//		viewer2->addCoordinateSystem(0.1,t[0],t[1],t[2]);
 	    	viewer2->resetCamera ();
 	    	viewer2->spinOnce();
+
+		}
 	
 	    globindx++;
-
-	    if(output){    	  	
-	    	 // --------------------------------------------
-	   	 // -----Open 3D viewer and add point cloud-----
-	    	 // --------------------------------------------
-	    	 boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
-	    	 viewer->setBackgroundColor (1, 1, 1);
-	    	 pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pcl_rgb_cloud1);
-	    	 viewer->addPointCloud<pcl::PointXYZRGB> (pcl_rgb_cloud1, rgb, "sample cloud");
-	    	 viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
-            	 viewer->addPointCloud<pcl::PointXYZRGB> (pcl_rgb_cloud2, rgb, "sample2 cloud");
-	    
-		  for (size_t i=0;i<final_correspondences.size();++i){	
-	        		std::stringstream ss ("line"); ss << i;   
-		        	std::stringstream sss ("spheresource"); sss << i;   
-				std::stringstream ssss ("spheretarget");ssss << i;		
-				viewer->addSphere<pcl::PointXYZRGBNormal>(finalcloud_src[final_correspondences[i].index_query],0.01,255,0,0,sss.str());
-		        	viewer->addSphere<pcl::PointXYZRGBNormal>(finalcloud_tgt[final_correspondences[i].index_match],0.01,0,255,0,ssss.str());
-		    	        viewer->addLine<pcl::PointXYZRGBNormal> (finalcloud_src[final_correspondences[i].index_query], finalcloud_tgt[final_correspondences[i].index_match], 0, 255, 255, ss.str ());
-			}
-	    	 viewer->addCoordinateSystem (0.5);
-	    	 viewer->resetCamera ();
-	    	 viewer->spin();
-	    }
 	 
 }
 
@@ -818,76 +710,121 @@ int main(int argc, char** argv)
    const std::string eval_folder = argv[1];
    evaluation_ptr_ = Evaluation::Ptr( new Evaluation(eval_folder) );		
    int frames (evaluation_ptr_->getSizeAssociations());
-//   frames = frames - 1;
-   frames = 200;
-   //cout << frames << " frames." << endl;
-   viewer2->setBackgroundColor (1, 1, 1);
-//   viewer.setBackgroundColor (1, 1, 1);
-//   viewer3->setBackgroundColor (0, 0, 0);
+//   frames = frames - 10;
+//   cout << " Trajectory of " << frames << " frames.\n";
+   frames = 1000;
+//   viewer2->setBackgroundColor (1, 1, 1);
    std::vector <Eigen::Matrix4f> camera_motion;
    camera_motion.resize(frames);
-
+   
+   //-- Initialize absolute indices of 640x480 images
    for(int y = 0; y < 480; ++y)
    for(int x = 0; x < 640; ++x){
       std::pair <int, int> pixel_pair = std::make_pair( y, x );
       absolute_indices.push_back(pixel_pair);
    }
 
-   for (size_t stamp_idx (0); stamp_idx < (frames-1)   ; ++stamp_idx){ 
+   // ------------------------------------------------------//
+   // -------------- MAIN PROCESSING LOOP ------------------//
+   // ------------------------------------------------------//
+
 //   for (size_t stamp_idx (85); stamp_idx < (86)   ; ++stamp_idx){ 
+   for (size_t stamp_idx (0); stamp_idx < (frames-1)   ; ++stamp_idx){ 
+
            cout << "----- Frame " << stamp_idx+1 << " -----"<< endl;
            ScopeTimeT time ("RGB-D Visual Odometry");
        	   cv::Mat depth1, depth2, rgb1, rgb2, cloud1, cloud2;
-           // grab frames from dataset folder
+           //-- Grab frames from dataset folder
 	   evaluation_ptr_->grab (stamp_idx, depth1, rgb1);	
 	   evaluation_ptr_->grab (stamp_idx + 1, depth2, rgb2);
-	   // create 3d point cloud from depth images
-	   create_cloud( depth1, cloud1 );create_cloud( depth2, cloud2 );
-           // convert 3d point cloud to pcl format
-	   //Mat2PCD(cloud1, pcl_cloud1);Mat2PCD(cloud2, pcl_cloud2);
-	   // define keypoints and matches
+
+           // ------------------------------------------------------ //
+	   // ---- Initialization/Creation of clouds,pcl,normals --- //
+   	   // ------------------------------------------------------ //
+	   pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud1 (new pcl::PointCloud<pcl::PointXYZ>), pcl_cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
+	   pcl::PointCloud<pcl::Normal>::Ptr normals1pcl (new pcl::PointCloud<pcl::Normal>), normals2pcl (new pcl::PointCloud<pcl::Normal>);
+           cv::Mat normals1, normals2;
+
+   	   // ------------------------------------------------------//
+           // ----- Keypoint Detection and Feature Computation -----//
+	   // ------------------------------------------------------//
+    	   //-- Define keypoints and matches
    	   std::vector<cv::KeyPoint> keypoints1, keypoints2;
-	   std::vector<cv::DMatch> matches, newmatches;
-	   pcl::PointCloud<pcl::Normal>::Ptr pcl_normals1 (new pcl::PointCloud<pcl::Normal>),pcl_normals2 (new pcl::PointCloud<pcl::Normal>);
-	   // match brand features 
-	   brand_matching(rgb1, cloud1, rgb2, cloud2, keypoints1, keypoints2, matches,pcl_normals1,pcl_normals2);
-	   //brand_matching(rgb1, cloud1, pcl_cloud1, rgb2, cloud2, pcl_cloud2, keypoints1, keypoints2, matches);
+   	   cv::Mat desc1, desc2;
+	   BrandDescriptorExtractor brand;
+           FrameComputation frame1, frame2;
+
+	   if(stamp_idx == 0){
+           	create_cloud( depth1, cloud1 );
+	   	convert_cv2pcl_cloud(cloud1, pcl_cloud1);
+	        compute_normals(cloud1, pcl_cloud1, normals1, normals1pcl);
+   	   	extract_keypoints(rgb1, cloud1, keypoints1);
+   	   	brand.compute( rgb1, cloud1, normals1, keypoints1, desc1 );
+	        frame1.assign(cloud1, normals1, keypoints1, desc1, pcl_cloud1, normals1pcl);
+		framecomputations.push_back(frame1);	
+	   }
+	   else
+		frame1.assign (framecomputations[stamp_idx].cloud, framecomputations[stamp_idx].normals, framecomputations[stamp_idx].keypoints, framecomputations[stamp_idx].desc, framecomputations[stamp_idx].pcl_cloud, framecomputations[stamp_idx].pcl_normals);
+
+	   //-- Create 3d point cloud from depth images
+	   create_cloud( depth2, cloud2 );
+	   //-- Convert 3d point cloud to pcl format
+	   convert_cv2pcl_cloud(cloud2, pcl_cloud2);
+	   //-- Compute normals in opencv and pcl format		
+           compute_normals(cloud2, pcl_cloud2, normals2, normals2pcl);
+   	   //-- Extract keypoints using rgb (A*) and depth (NARF) images
+	   extract_keypoints(rgb2, cloud2, keypoints2);
+	   //-- Compute BRAND features
+   	   brand.compute( rgb2, cloud2, normals2, keypoints2, desc2 );
+
+           frame2.assign(cloud2, normals2, keypoints2, desc2, pcl_cloud2, normals2pcl);
+	   framecomputations.push_back(frame2);
+
+	   // ------------------------------------------------------//
+           // -----  Feature Matching and Outlier Rejection --------//
+	   // ------------------------------------------------------//
+	   //-- Match features using cross-checking with Hamming norm
+	   std::vector<cv::DMatch> matches; 
+	   crossCheckMatching(frame2.desc, frame1.desc, matches);
 	   cout << matches.size() <<" Inliers after cross-checking " << endl;
 	   //-- Quick calculation of max and min distances between keypoints
-	  double max_dist = 0; double min_dist = 0;
-	  for( int i = 0; i < matches.size(); i++ )
-	  { double dist = matches[i].distance;
+	   double max_dist = 0; double min_dist = 0;
+	   for( int i = 0; i < matches.size(); i++ )
+	   { double dist = matches[i].distance;
 	    if( dist < min_dist ) min_dist = dist;
 	    if( dist > max_dist ) max_dist = dist;
-	  }
-	  printf("-- Max dist : %f \n", max_dist );
-	  printf("-- Min dist : %f \n", min_dist );
-	  //-- Use only "good" matches (i.e. whose distance is less than max_dist/2)
-	  std::vector< cv::DMatch > good_matches, final_matches;
-	  double reprojectionErrorThreshold (max_dist*3/4);
-  	  for( int i = 0; i < matches.size(); i++ ) 
+	   }
+	   printf("-- Max dist : %f \n", max_dist );
+	   printf("-- Min dist : %f \n", min_dist );
+	   //-- Use only "good" matches (i.e. whose distance is less than max_dist/2)
+	   std::vector< cv::DMatch > good_matches, final_matches;
+	   double reprojectionErrorThreshold (max_dist*1/2);
+  	   for( int i = 0; i < matches.size(); i++ ) 
 		if( matches[i].distance <  reprojectionErrorThreshold)
 	       		good_matches.push_back( matches[i]); 
-	  if (good_matches.size()>3)
+	   if (good_matches.size()>3)
 	  	cout << good_matches.size() <<" \"Good matches\"" << endl;
-          else{
+           else{
 		cout << "Too few good matches using previously filtered matches" << endl;
 		good_matches = matches;
- 	  }
-	  //outlier rejection with RANSAC reprojection error and motion estimation	   
-	  if (good_matches.size() > 3){
-	  ransacOutlierRejection(rgb2, keypoints2, rgb1, keypoints1, good_matches, final_matches, reprojectionErrorThreshold, true);
-//	  ransacOutlierRejection(rgb1, keypoints1, rgb2, keypoints2, good_matches, final_matches, reprojectionErrorThreshold, true);
+ 	   }
+	   //-- Outlier rejection with RANSAC reprojection error and motion estimation	   
+	   if (good_matches.size() > 30){
+	   ransacOutlierRejection(rgb2, frame2.keypoints, rgb1, frame1.keypoints, good_matches, final_matches, reprojectionErrorThreshold, true);
+	   cout << "Final number of inliers: " << final_matches.size()<< endl;
 
-	  cout << "Final number of inliers: " << final_matches.size()<< endl;
-          // Estimate Rigid Transform by SVD on 3d points 
-          Eigen::Matrix4f T, T_prev;
+
+	  // ------------------------------------------------------//
+          //----- Estimate Rigid Transform by SVD on 3d points ----//
+          // ------------------------------------------------------//
+	  Eigen::Matrix4f T, T_prev;
 		  if (stamp_idx==0){
 			// tx ty tz qx qy qz qw
 			//-0.0730 -0.4169 1.5916 0.8772 -0.1170 0.0666 -0.4608
 			//1305031910.7695 -0.8683 0.6026 1.5627 0.8219 -0.3912 0.1615 -0.3811
 			Eigen::Vector4f t (-0.868270, 0.603138, 1.562795, 1);
 			Eigen::Quaternionf q(-0.381461, 0.822052,-0.390615, 0.16170);
+
 			Eigen::Matrix3f R( q.toRotationMatrix());					  
 			//Eigen::Vector4f t (0, 0, 0, 1);
 			//Eigen::Matrix3f R (Eigen::Matrix3f::Identity());
@@ -899,7 +836,7 @@ int main(int argc, char** argv)
 		  else
 			T_prev = camera_motion[stamp_idx];
 
-		   estimateRigidMotion(final_matches, rgb1, depth1, pcl_normals1, keypoints1, rgb2, depth2, pcl_normals2, keypoints2, T_prev, T, false);
+		   estimateRigidMotion(final_matches, rgb1, depth1, frame1.pcl_normals, frame1.keypoints, rgb2, depth2, frame2.pcl_normals, frame2.keypoints, T_prev, T, false);
 	           camera_motion[stamp_idx+1] = T;  
     	  }
        	  else{
@@ -909,7 +846,7 @@ int main(int argc, char** argv)
 	   Eigen::Matrix4f T_0_1 (T_1.inverse()*T_0);
 	   Eigen::Matrix4f T_2 (T_1*T_0_1);
 	   camera_motion[stamp_idx+1] = T_2;
-	   break;
+	   cv::waitKey();
            }
    }
    cout << "Before save all poses" << endl;
@@ -920,97 +857,3 @@ int main(int argc, char** argv)
    return 0;
 }
 
-
-/*
-		// deduce incremental rotation and translation from ICP's results
-        	Eigen::Matrix3f cam_rot_incremental = T.block(0,0,3,3);
-        	Eigen::Vector3f cam_trans_incremental = T.block(0,3,3,1);
-
-	        //compose global pose
-		T_current = Eigen::Matrix4f::Identity ();
-	        T_current.block(0,3,3,1) = cam_rot_incremental * T_prev.block(0,3,3,1) + cam_trans_incremental;
-	        T_current.block(0,0,3,3) = cam_rot_incremental * T_prev.block(0,0,3,3);
- */	
-
-
-//  unsigned short* depth_buffer = (unsigned short*)depth.data;
-      
-//      std::vector<unsigned short> source_depth_data_;
-//      int width = cloud.cols, height = cloud.rows;
-//      source_depth_data_.resize(cloud.cols * cloud.rows);
-//      depth_wrapper->fillDepthImageRaw(width, height, &source_depth_data_[0]);
-
-
-// vector<unsigned short> img;
-//for (int i = 0; i < cloud.rows; ++i){
-//  for (int j = 0; j < cloud.cols; ++j){
-//    img.push_back(depth.at<uint16_t>(i, j));
-//    }
-//}
-
-//    unsigned short* depth_buffer;
-//    for( int y = 0; y < cloud.rows; y++ )
-//    {
-//        const uint16_t* depth_prt = (uint16_t*)depth.ptr(y);
-
-//        for( int x = 0; x < cloud.cols; x++ )
-//        {
-//            depth_buffer[y*cloud.rows + x] = (float)depth_prt[x]; // meters
-//        }
-//    }
-
-//   boost::shared_ptr<openni_wrapper::DepthImage> depth_image_ptr;
-
-//   cout << "Before fill" << endl;
-//   depth_image_ptr->fillDepthImageRaw((unsigned) height, (unsigned) width, depth_buffer);
-//   cout << "After computing depth image" << endl;
-
-
-  // -------------------------------------
-  // -----Show keypoints in 3D viewer-----
-  // -------------------------------------
-//  pcl::PointCloud<pcl::PointXYZ>::Ptr keypoints_ptr (new pcl::PointCloud<pcl::PointXYZ>);
-//  pcl::PointCloud<pcl::PointXYZ>& keypoints = *keypoints_ptr;
-//  keypoints.points.resize (keypoint_indices.points.size ());
-//  for (size_t i=0; i<keypoint_indices.points.size (); ++i)
-//    keypoints.points[i].getVector3fMap () = range_image_planar.points[keypoint_indices.points[i]].getVector3fMap ();
-
-//  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> keypoints_color_handler (keypoints_ptr, 0, 255, 0);
-//  viewer.addPointCloud<pcl::PointXYZ> (keypoints_ptr, keypoints_color_handler, "keypoints");
-//  viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "keypoints");
-
-//  viewer.spin();
-
-// 
-//  pcl::visualization::PCLVisualizer viewer ("3D Viewer");
-//  viewer.setBackgroundColor (0.5, 0.5, 0.5);
-//  viewer.addCoordinateSystem (1.0f);
-//  viewer.addPointCloud (p   cl_cloud, "original point cloud");
-
-
-//  cout << "Before computing range image" << endl;
-//  range_image.createFromPointCloud (*pcl_cloud, angular_resolution, pcl::deg2rad (360.0f), pcl::deg2rad (180.0f),
-//                                   scene_sensor_pose, coordinate_frame, noise_level, min_range, border_size);
-//  range_image.integrateFarRanges (far_ranges);
-//  range_image.setUnseenToMaxRange();
-
-
-  // --------------------------
-//  pcl::visualization::RangeImageVisualizer range_image_widget ("Range image");
-//  range_image_widget.showRangeImage (range_image_planar);
-
-
-  // -----Open 3D viewer and add point cloud-----
-  // --------------------------------------------
-
-//  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> range_image_color_handler (range_image_ptr, 1.0, 0, 0);
-//  viewer.addPointCloud (range_image_ptr, range_image_color_handler, "range image");
-//  viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "range image");
-
-//  viewer.initCameraParameters ();
-//  setViewerPose (viewer, range_image_planar.getTransformationToWorldSystem ());
-
-//  viewer.spin();
-//      const unsigned short* depth_map = depth_image_ptr->getDepthMetaData ().Data ();
-//      const unsigned short* depth_map = depth_image_ptr->getDepthMetaData ().Data ();
-//      const unsigned short* depth_map = (unsigned short*)depth.data;
