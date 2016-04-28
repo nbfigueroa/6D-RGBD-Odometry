@@ -22,9 +22,13 @@ Iterative estimation using RANSAC and Umeyama Method.
 
 The output of this algorithm should be something similar to this video:
 
-###brand_odometry
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=zR4nMKZL8go
+" target="_blank"><img src="http://img.youtube.com/vi/zR4nMKZL8go/0.jpg" 
+alt="IMAGE ALT TEXT HERE" width="240" height="180" border="10" /></a>
 
-To run this example you will need to install PCL library (www.pointclouds.org), OpenCV (www.opencv.org) and compile the brand library in this folder, to do so,  (after succesfully installing PCL and OpenCV) you must follow these instructions:
+---
+
+To use this code, you will need to install PCL library (www.pointclouds.org), OpenCV (www.opencv.org) and compile the brand library in this folder, to do so,  (after succesfully installing PCL and OpenCV) you must follow these instructions:
 
 ```
 cd ~/brand/
@@ -54,7 +58,7 @@ You should then get the following output:
 ![alt text](https://github.com/nbfigueroa/6D-RGBD-Odometry/blob/master/brand_match/brand_matches.png "BRAND Descriptot Matches")
 
 
-###brand_match
+###brand_odometry
 Finally, if you want to test the odometry algorithm, you should download a dataset with a moving rgb-d sensor. I recommend one of these : [TUM RGB-D Dataset](http://vision.in.tum.de/data/datasets/rgbd-dataset/download) or if you have your own dataset you should just put both rgb and depth in the same folder with same timestamps, follow the naming convention of the rgb-d dataset. 
 
 Compiling:
@@ -63,11 +67,10 @@ cd ~/brand_odometry/
 mkdir build && cd build
 make
 ```
-
-
-
-
-
+Running:
+```
+./6d_odometry_nadia 
+```
 
 ---
 #####Reference:
